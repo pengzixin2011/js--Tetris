@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="./lodash.min.js"></script>
+    <style>
+        .container {
+            width: 200px;
+            height: 360px;
+            background-color: black;
+            position: relative;
+        }
+        
+        .activity_model {
+            width: 20px;
+            height: 20px;
+            background-color: green;
+            border: .3px solid #eee;
+            box-sizing: border-box;
+            position: absolute;
+        }
+        
+        .fix {
+            width: 20px;
+            height: 20px;
+            background-color: #fefefe;
+            border: .3px solid black;
+            box-sizing: border-box;
+            position: absolute;
+        }
+    </style>
+</head>
+
+<body onload="init()">
+    <div class="score">当前分数:</div>
+    <!-- 背景容器 -->
+    <div class="container">
+
+    </div>
+    <button class="start">开始</button>
+    <button class="end">结束</button>
+    <button class="fast">2倍速</button>
+</body>
+<script src="./deep.js">
+</script>
+<script>
+    //生成从minNum到maxNum的随机数
+    function randomNum(minNum, maxNum) {
+        switch (arguments.length) {
+            case 1:
+                return parseInt(Math.random() * minNum + 1, 10);
+                break;
+            case 2:
+                return parseInt(Math.random() * (maxNum - minNum + 1) + minNum, 10);
+                break;
+            default:
+                return 0;
+                break;
+        }
+    }
+    // 定义步长
+    const step = 20;
+    // 入口方法
+    function init() {
+        onKeyDown();
+
+        document.querySelector('.start').addEventListener('click', function() {
+            createModel();
+            this.disabled = true;
+        });
+        document.querySelector('.end').addEventListener('click', function() {
+            gameOver();
+            document.querySelector('.start').disabled = false;
+        });
+    };
+
+    //定时器
+    let interval = null;
+    // 分割容器，构造方块
+    const Row = 18;
+    const Col = 10;
+    //记录总分
+    let score = 0;
+    let MODELS = [
+        //L型
+        {
+            0: {
+                row: 2,
+                col: 0
+            },
+            1: {
+                row: 2,
+                col: 1
+            },
+            2: {
+                row: 2,
+                col: 2
+            },
+            3: {
+                row: 1,
+                col: 2
+            }
+        },
+        //凸型
+        {
+            0: {
+                row: 1,
+                col: 1
+            },
+            1: {
+                row: 2,
+                col: 0
+            },
+            2: {
+                row: 2,
+                col: 1
+            },
+            3: {
+                row: 2,
+                col: 2
+            }
+        },
+        //田型
+        {
+            0: {
+                row: 1,
+                col: 1
+            },
+            1: {
+                row: 2,
+                col: 1
+            },
+            2: {
+                row: 1,
+                col: 2
+            },
+            3: {
+                row: 2,
+                col: 2
+            }
+        },
+        //(一型)
+        {
+            0: {
+                row: 0,
+                col: 0
+            },
+            1: {
+                row: 0,
+                col: 1
+            },
+            2: {
+                row: 0,
+                col: 2
+            },
+            3: {
+                row: 0,
+                col: 3
+            }
+        },
+        //Z型
+        {
+            0: {
+                row: 1,
+                col: 1
+            },
+            1: {
+                row: 1,
+                col: 2
+            },
+            2: {
+                row: 2,
+                col: 2
+            },
+            3: {
+                row: 2,
+                col: 3
+            }
+        }
+    ];
+    // 当前使用的模型
+    let currentModel = {}
+        // 标记是十六宫格的位置
+    let currentX = 0
+    let currentY = 0
+        // 记录所有块的位置
+    let fixedBlock = {}
+        // 创建模型
+    function createModel() {
+        if (over()) {
+            gameOver();
+            return;
+        }
+        // 确定当前使用的模型
+        currentModel = MODELS[randomNum(0, MODELS.length - 1)];
+        currentX = 0;
+        currentY = 0;
+        // 生成
+        for (const key in currentModel) {
+            let divE = document.createElement('div');
+            divE.className = "activity_model";
+            document.querySelector('.container').appendChild(divE)
+
+        }
+        locationB();
+        autoDown();
+    }
+    // 定位元素位置
+    function locationB() {
+        limit()
+            // 拿到所有块元素
+        let els = document.querySelectorAll('.activity_model')
+            // 找到每个块元素对应的数据
+        for (let i = 0; i < els.length; i++) {
+            let acE = els[i]
+                // 根据每个块元素对应的数据来指定块元素的位置
+            let blockModel = currentModel[i]
+
+            acE.style.top = (currentY + blockModel.row) * step + 'px'
+            acE.style.left = (currentX + blockModel.col) * step + 'px'
+        }
+
+    }
+    // 监听用户的键盘事件
+    function onKeyDown() {
+        document.onkeydown = function(e) {
+            switch (e.keyCode) {
+                case 38:
+                    rotate()
+                    break;
+                case 37:
+                    move(-1, 0);
+                    break;
+                case 39:
+                    move(1, 0);
+                    break;
+                case 40:
+                    move(0, 1);
+                    break;
+            }
+        }
+    }
+    // 移动
+    function move(x, y) {
+
+        let ac = document.querySelectorAll('.activity_model')
+            // console.log(ac.style.left);
+            // if (parseInt(ac.style.top) == 0 && y < 0) {
+            //     console.log(parseInt(ac.style.top));
+            //     y = 0
+            // }
+            // if (parseInt(ac.style.top) == 340 && y > 0) {
+            //     y = 0
+            // }
+            // if (parseInt(ac.style.left) == 180 && x > 0) {
+            //     x = 0
+            // }
+            // if (parseInt(ac.style.left) == 0 && x < 0) {
+            //     x = 0
+            // }
+            // ac.style.top = parseInt(ac.style.top || 0) + y * step + 'px';
+            // ac.style.left = parseInt(ac.style.left || 0) + x * step + 'px';
+        if (isMeet(currentX + x, currentY + y, currentModel)) {
+            if (y !== 0) {
+                //判断是否要清理
+
+                fixModel();
+            }
+            return;
+        }
+        currentX += x;
+        currentY += y;
+        locationB();
+    }
+    // 旋转
+    function rotate() {
+        //克隆currentModel
+        let cloneCurrentModel = deepClone(currentModel);
+        // 旋转后的行 = 旋转前的列
+        // 旋转后的列 = 3 - 旋转前的列
+        for (let key in cloneCurrentModel) {
+            let blockModel = cloneCurrentModel[key];
+            let temp = blockModel.row;
+            blockModel.row = blockModel.col;
+            blockModel.col = 3 - temp;
+        }
+        if (isMeet(currentX, currentY, cloneCurrentModel)) {
+            return;
+        }
+        currentModel = cloneCurrentModel;
+        locationB();
+    }
+
+    // 定义边界
+    function limit() {
+        //定义边界
+        let left = 0;
+        let right = Col;
+        let bottom = Row;
+        // 当块元素超过了边界了以后，让他后退
+        for (const key in currentModel) {
+            let blockModel = currentModel[key]
+            if ((currentX + blockModel.col) < 0) {
+                currentX++;
+            }
+            if ((currentX + blockModel.col) >= right) {
+                currentX--;
+            }
+            if ((currentY + blockModel.row) >= bottom) {
+                currentY--;
+                fixModel();
+
+            }
+        }
+    }
+    // 到底部以后把模型固定在底部
+    function fixModel() {
+        // 改变模型样式
+        let ace = document.querySelectorAll('.activity_model')
+        for (let i = 0; i < ace.length; i++) {
+            ace[i].className = "fix";
+            // 把该块元素放入变量中
+            let blockModel = currentModel[i]
+            fixedBlock[(currentY + blockModel.row) + '_' + (currentX + blockModel.col)] = ace[i]
+        }
+        isRemove();
+        //生成新的模型
+        createModel();
+
+
+    }
+
+    //解决碰撞位置
+    function isMeet(x, y, model) {
+
+        for (let k in model) {
+            let blockModel = model[k];
+            //该位置是否已经存在块元素?
+            if (fixedBlock[(y + blockModel.row) + '_' + (x + blockModel.col)]) {
+                return true;
+            }
+        }
+        return false;
+    }
+    //判断一行是否被铺满
+    function isRemove() {
+        //遍历所有行中的列
+        //遍历行
+
+        for (let i = 0; i < Row; i++) {
+            let flag = true;
+            //遍历列
+            for (let j = 0; j < Col; j++) {
+                //如果当前行中有一列没有数据，那么就说明当前行没有被铺满
+                if (!fixedBlock[i + '_' + j]) {
+                    flag = false;
+                    break;
+                }
+            }
+            if (flag) {
+                clean(i)
+            }
+        }
+    }
+    //清理行
+    function clean(line) {
+
+        //遍历该行的列
+        for (let i = 0; i < Col; i++) {
+            //1.删除该行中的所有元素
+            document.querySelector('.container').removeChild(fixedBlock[line + '_' + i]);
+            //2.删除该行中的所有数据源
+            fixedBlock[line + '_' + i] = null;
+            score += 10
+            document.querySelector('.score').innerHTML = '当前分数：' + score;
+        }
+        down(line);
+    }
+    //清理后让块元素下落
+    function down(line) {
+        //1.被清理行之上的元素全部的行+1
+        //2.让块元素在容器中的位置下落
+        //3.清理掉之前的块元素
+        //遍历被清理行之上的所有行
+        for (let i = line - 1; i >= 0; i--) {
+            for (let j = 0; j < Col; j++) {
+                if (!fixedBlock[i + '_' + j]) continue;
+                //存在元素
+                //让他的行数+1
+                fixedBlock[(i + 1) + '_' + j] = fixedBlock[i + '_' + j];
+                //让他下落
+                fixedBlock[(i + 1) + '_' + j].style.top = (i + 1) * step + 'px';
+                //清理之前的块元素
+                fixedBlock[i + '_' + j] = null;
+            }
+        }
+    }
+    //自动下落
+    function autoDown() {
+        if (interval) {
+            clearInterval(interval)
+        }
+        interval = setInterval(() => {
+            move(0, 1)
+        }, 600)
+    }
+    //判断结束
+    function over() {
+        //当第0行存在块元素的时候，游戏结束
+        for (let i = 0; i < Col; i++) {
+            if (fixedBlock['0_' + i]) {
+                return true;
+            };
+        }
+        return false;
+    }
+    //结束游戏
+    function gameOver() {
+        if (interval) {
+            clearInterval(interval);
+        }
+        alert('游戏结束');
+    }
+</script>
+
+</html>
